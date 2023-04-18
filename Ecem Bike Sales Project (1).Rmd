@@ -1,0 +1,1064 @@
+---
+title: "ecem bike sales europe"
+author: "Ecem Güneş"
+date: "4/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# veriyi çağırıyorum #
+```{r}
+library(readr)
+Sales <- read_delim("Sales.csv", ";", escape_double = FALSE, 
+    trim_ws = TRUE)
+View(Sales)
+```
+
+
+
+# Veride eksik değerlerim olup olmadığını kontrol ediyorum #
+```{r}
+library(funModeling)
+df_status(Sales)
+d_na<-df_status(Sales)
+d_na[,c("variable","p_na")]
+```
+
+
+# Sampling yapıyorum; datamın isminin, en sonda açıklayıcı olması için  sampling yaparken data sampleı bike1-2 gibi isimler olarak atıyorum #
+```{r}
+library(caret)
+set.seed(587964)
+sample_id<-createDataPartition(Sales$Cost, p=0.50, list=FALSE)
+bike1<-Sales[sample_id,]
+```
+
+```{r}
+library(caret)
+set.seed(587964)
+sample_id<-createDataPartition(bike1$Cost, p=0.50, list=FALSE)
+bike2<-bike1[sample_id,]
+```
+
+```{r}
+library(caret)
+set.seed(587964)
+sample_id<-createDataPartition(bike2$Cost, p=0.50, list=FALSE)
+bike3<-bike2[sample_id,]
+```
+
+```{r}
+library(caret)
+set.seed(587964)
+sample_id<-createDataPartition(bike3$Cost, p=0.50, list=FALSE)
+bike4<-bike3[sample_id,]
+```
+
+```{r}
+library(caret)
+set.seed(587964)
+sample_id<-createDataPartition(bike4$Cost, p=0.50, list=FALSE)
+bike5<-bike4[sample_id,]
+```
+
+```{r}
+library(caret)
+set.seed(587964)
+sample_id<-createDataPartition(bike5$Cost, p=0.50, list=FALSE)
+bike6<-bike5[sample_id,]
+```
+
+```{r}
+library(caret)
+set.seed(587964)
+sample_id<-createDataPartition(bike6$Cost, p=0.50, list=FALSE)
+bike_sales<-bike6[sample_id,]
+```
+
+
+# Datamdan analiz yaparken dikkatimi dağıtmaması için gereksiz olan satırları çıkarıyorum # 
+```{r}
+bike_sales_europe<- bike_sales
+bike_sales_europe$Date<-NULL
+bike_sales_europe$Day <- NULL
+```
+
+```{r}
+library("openxlsx")
+write.xlsx(bike_sales_europe, 'bike_sales_europe_sampling.xlsx')
+```
+
+# Kategorik değişkenlerimi factor olarak düzenliyorum #
+```{r}
+bike_sales_europe$Customer_Gender <- factor(bike_sales_europe$Customer_Gender, levels=c("F","M")) 
+bike_sales_europe$Product_Category <- factor(bike_sales_europe$Product_Category, levels=c("Accessories","Clothing","Bikes")) 
+bike_sales_europe$Product_Category <- factor(bike_sales_europe$Sub_Category, levels=c("Bike Racks","Bike Stands","Bottles and Cages","Caps","Cleaners","Fenders","Glove","Helmets","Hydration Pack","Jerseys","Mountain Bikes","Road Bikes","Shorts","Socks","Tires and Tubes","Touring Bikes", "Vests")) 
+```
+# Düzenlediğim datamı özetliyorum #
+```{r}
+summary(bike_sales_europe)
+```
+
+# Satır ve sütunları kontrol ediyorum #
+```{r}
+rowSums(is.na(bike_sales_europe))
+colSums(is.na(bike_sales_europe))
+```
+
+#Orjinal datayı yedekliyorum #
+```{r}
+data_org<-bike_sales_europe 
+```
+
+#Veriye eksik değerler atıyorum #
+```{r}
+bike_sales_europe_miss<-bike_sales_europe
+aa<-sample(1:nrow(bike_sales_europe_miss),floor(nrow(bike_sales_europe_miss)*0.05))
+bike_sales_europe_miss$Profit[aa]<-NA
+colSums(is.na(bike_sales_europe_miss))
+```
+
+#Eksik gözlemlerin yapısını inceliyorum#
+```{r}
+library(mice)
+md.pattern(bike_sales_europe_miss)
+```
+
+# Eksik değerli verimi kontrol ediyorum #
+```{r}
+View(bike_sales_europe_miss)
+```
+
+#Basit doldurma ile eksik değerleri dolduruyorum#
+```{r}
+bike_sales_europe_miss_ort<-bike_sales_europe_miss
+hist(bike_sales_europe_miss_ort$Profit)
+bike_sales_europe_miss_ort$Profit[is.na(bike_sales_europe_miss_ort$Profit)]<-mean(bike_sales_europe_miss_ort$Profit,na.rm=TRUE)
+```
+#Eksik değerleri doldurduğum veriyi kontrol ediyorum#
+```{r}
+View(bike_sales_europe_miss_ort)
+```
+
+#Veriyi eğitim ve test verisi olarak incelemek istiyorum ve %80-%20 ayırıyorum# 
+```{r}
+library(caret)
+set.seed(74367432)
+train_id<-createDataPartition(data_org$Profit, p=0.80,
+                              list=FALSE,
+                              times=1)
+train<-data_org[train_id,]
+test<-data_org[-train_id,]
+```
+
+#Veriyi test ve eeğitim olarak exportluyorum#
+```{r}
+library("openxlsx")
+write.xlsx(train, 'train.xlsx')
+write.xlsx(test, 'test.xlsx')
+```
+
+#DPLYR fonksiyonu ile train verimi özetliyorum#
+```{r}
+library(dplyr)
+glimpse(train)
+summary(train)
+```
+
+#Orjinal verimdeki profit değişkenini özetliyorum#
+```{r}
+summary(data_org$Profit)
+```
+
+#Profit değişkenini kategorize ediyorum#
+```{r}
+train$Profit_kat[train$Profit >= -3 & train$Profit <=  1350]  <- "Az"
+train$Profit_kat[train$Profit >= 1351 & train$Profit <=  2690]  <- "Orta"
+train$Profit_kat[train$Profit >= 2691] <- "Cok"
+
+```
+
+#Kategorik değişkenlerime faktör ataması yapıyorum#
+```{r}
+train<-as.data.frame(train)
+train$Customer_Gender<-as.factor(train$Customer_Gender)
+train$Product_Category<-as.factor(train$Product_Category)
+summary(train)
+train$Profit_kat<-as.factor(train$Profit_kat)
+summary(train)
+```
+###NOKTA OLCULERI
+```{r}
+#3 Nokta Özeti
+n<-nrow(train)
+train_sorted <- train[order(train$Cost),] #ascending
+#ortnc_derinlik<-(n+1)/2 #tek sayı ise
+#cift ise:
+a<-(n/2)
+b<-(n/2)+1
+(train_sorted$Cost[a]+train_sorted$Cost[b])/2 
+median(train$Cost)
+mean(train$Cost)
+hist(train$Cost)
+```
+##5 Nokta Özeti##
+```{r}
+fivenum(train$Cost) 
+```
+
+###DEGISIM OLCULERI##
+```{r}
+stdev<-sd(train$Profit)
+mean<-mean(train$Profit)
+Degisim_kats_Profit<-(stdev/mean)*100
+```
+
+##MAD(Median Absolute Deviation):
+```{r}
+sort <- train[order(train$Profit),]
+medianf<-median(sort$Profit)
+sort$fmed<-abs(sort$Profit-medianf)
+sort2 <- sort[order(sort$fmed),]
+mad<-median(sort2$fmed)
+```
+
+##Genişletilmiş Nokta Özeti##
+```{r}
+#Sol kuyruk
+sol <- function(x) {
+  c(quantile(x, probs = 1/2) , 
+    quantile(x, probs = 1/4),
+    quantile(x, probs =1/8 ),
+    quantile(x,probs=1/16),
+    quantile(x,probs=1/32),
+    quantile(x,probs=1/64)
+  )
+}
+```
+
+
+```{r}
+#Sag kuyruk
+sag <- function(x) {
+  c(quantile(x, probs = 1/2) , 
+    quantile(x, probs = 3/4),
+    quantile(x, probs = 7/8),
+    quantile(x,probs=15/16),
+    quantile(x,probs=31/32),
+    quantile(x,probs=63/64)
+  )
+}
+```
+
+##Kuyruk Uzunlugu Incelemesi##
+```{r}
+x_a<-sol(train$Unit_Price)
+x_u<-sag(train$Unit_Price)
+x_mrg<-as.data.frame(cbind(x_a,x_u))
+rownames(x_mrg)<-c("1/2","1/4","1/8","1/16","1/32","1/64")
+colnames(x_mrg)<-c("Alt_Kuyruk","Ust_Kuyruk")
+x_mrg$orta_nokta<-(x_mrg$Alt_Kuyruk+x_mrg$Ust_Kuyruk)/2
+x_mrg
+hist(train$Unit_Price)
+```
+##Kesilmis ortalama##
+```{r}
+p<-0.1
+mean(train$Unit_Cost, trim = p)
+#Kalan gozlem sayısı hesaplanmak istenirse:
+n<-nrow(train)
+ks<-n-(as.integer(2*p*n)) 
+ks
+```
+##Ortalama değerim olan 127.8292'e denk 567 gözlem vardır.##
+
+##Geometrik ortalama##
+```{r}
+library("psych")
+geometric.mean(train$Unit_Cost)
+```
+
+##Gini##
+```{r}
+freq <- as.data.frame(table(train$Unit_Cost))
+names(freq)[1] <- 'total fiyat'
+
+gini <- function(a,b) {
+  a1 <- (a/(a+b))**2
+  b1 <- (b/(a+b))**2
+  x<-1-(a1 + b1)
+  return(x)
+}
+gn<-gini(freq[1,2],freq[2,2])
+k<-2
+gn/((k-1)/k)
+```
+
+##0.7756233 değeri "1" e cok yakın oldugu icin veriler tüm düzeylere esit dagılmamıstır.##
+
+##Entropi##
+```{r}
+entropy<-function(base,a,b) {
+  var <-  abs(((a)/(a+b))*log(((a)/(a+b)),base))-(((b)/(a+b))*log(((b)/(a+b)),base))
+  return(var)
+}
+ent<-entropy(10,freq[1,2],freq[2,2])
+k<-2
+ent/(log(k,10)) 
+```
+
+##0.8314744 değeri ile normalize edilebilir##
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 6. Adım #
+
+##BAR PLOT##
+
+```{r}
+library(dplyr)
+tra_pct <- train %>% group_by(Profit_kat, Cost) %>%
+  dplyr::summarise(count=n()) %>%
+  mutate(pct=round(count/sum(count),2))
+
+ggplot(tra_pct, aes(Profit_kat, pct, fill = Cost)) + 
+  geom_bar(stat='identity') + 
+  geom_text(aes(label=scales::percent(pct)), position = position_stack(vjust = .5))+
+  scale_y_continuous(labels = scales::percent)
+```
+ 
+##PIE CHART##
+
+```{r}
+library(plotly)
+cross<-as.data.frame(prop.table(table(train$Customer_Age))) 
+colnames(cross)[1] <- "Young Adult"
+plot_ly(cross, labels = ~ Freq, values = ~Freq, type = 'pie')%>% layout(title ='Müşteri yaşlarının dagılımı')
+
+```
+##Müşterilerin yaşlarını pasta grafiğinde görüyoruz, buradan bisiklet almanın yüzde olarak bakıldığında her yaşta tercih edildiğini görsek de ½11.3 ile genç yetişkinlerde daha çok gözlemliyoruz. 
+
+
+##Histogram+Yogunluk bırlıkte##
+```{r}
+ggplot(train,aes(Unit_Cost))+
+  geom_histogram(aes(y=..density..))+
+  geom_density(alpha=.1,fill="lightblue")
+```
+##Q-Q PLOT##
+
+```{r}
+ggplot(train, aes(sample=Unit_Cost))+stat_qq()
+qqnorm(train$Unit_Price)
+```
+
+##BOX PLOT##
+```{r}
+ggplot(train, aes(y=Unit_Price))+
+  geom_boxplot()
+
+ggplot(train, aes(x=Profit_kat,y=Unit_Price, fill=Profit_kat))+
+  geom_boxplot()+
+  labs(title="Kar kategorileri bazında total fiyat Kutu Cizimi",x="Kar Kategorileri", y = "FEV")+
+  scale_fill_discrete(name = "Kar Kategorileri")+
+  stat_summary(fun = median, geom="line", group= 1, color= "pink", size = 1)  
+```
+##Kar için inceleme yaparsak çok kar elde edildiğini ama yine de grafiğin dalgalandığını söyleyebiliriz##
+
+##renk değiştirdim##
+```{r}
+ggplot(train, aes(x=Profit_kat,y=Unit_Price, fill=Profit_kat)) + 
+  geom_boxplot(outlier.colour="violet", outlier.shape=7,
+               outlier.size=1)
+```
+##BUBBLE PLOT##
+```{r}
+ggplot(train, aes(Revenue,Profit, color=Cost, size=Cost))+
+  geom_point(alpha=0.5)+
+  scale_color_gradientn(colors =rainbow(unique(train$Cost))) +
+  theme(legend.position = "right")
+```
+##Gelire baktığımızda artan bir grafik gördüğümüzü ama arttığı yerde sürekli olmadığını söyleyebiliriz##
+
+
+
+##Scatter plot##
+```{r}
+library(tidyverse)
+ggplot(train, aes(Cost,Unit_Cost))+
+  geom_point(size=2,shape=21,stroke=1,color="pink", fill="lightblue")+
+  geom_smooth(method = "lm", col="violet",se = FALSE)
+```
+##Maaliyet ve total maaliyetin ilişkisini incelediğimizde az ilişkili olduklarını söyleyebiliriz.##
+
+##Hexagonal Binning##
+```{r}
+library("hexbin")
+ggplot(train,aes(x=Unit_Cost,y=Cost))+
+geom_hex(bins=20)+theme_minimal()
+```
+##Maaliyet ve total maaliyetin ilişkisini incelediğimizde az ilişkili olduklarını söyleyebiliriz.##
+
+##Contour density##
+```{r}
+ggplot(train, aes(x=Unit_Cost, y=Cost) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="violet")+theme_classic()
+```
+
+##Maaliyet ve total maaliyetin ilişkisini incelediğimizde az ilişkili olduklarını söyleyebiliriz.##
+
+##Sacılım matrisi- Histogram+Yogunluk+Duzlestırme+Korelasyon##
+```{r}
+cor_train<-train[,c(12,13,14)]
+library(GGally)
+cor(cor_train)#Korelasyon degerleri
+plot(cor_train)
+ggpairs(cor_train)#yogunluk+sacılım+corr
+
+library(PerformanceAnalytics)
+chart.Correlation(cor_train, histogram=TRUE, pch=19)
+
+```
+##Profit değerimin sağa çarpık olduğunu gözlemleyebiliriz.##
+
+# Heatmap
+
+```{r}
+library(ggplot2)
+ggplot(data = train, aes(Cost, Profit, fill =))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed()
+```
+
+
+
+#corr plot
+
+```{r}
+library(corrplot)
+corrplot(cor(train[,12:14]), method = "ellipse")
+corrplot.mixed(cor(train[,12:14]), lower = "ellipse", upper = "circle",tl.col = "black") #ellipse yerine square olabilir
+```
+
+
+#Kara göre göre Cost üzerinden ortanca ve DAG bulunursa:
+```{r}
+library(dplyr)
+a<-train %>%group_by(Profit_kat) %>%
+  summarize(Q1=quantile (Cost, probs=0.25), Median=quantile (Cost, probs=0.50), Q3=quantile(Cost, probs=0.75), DAG=Q3-Q1)
+a
+```
+
+
+##Ortanca Izi Cizimi##
+```{r}
+ggplot(train, aes(x=Profit_kat,y=Cost, fill=Profit_kat))+
+  geom_boxplot()+
+  stat_summary(fun = median, geom="line", group= 1, color= "lightblue", size = 1)  
+```
+##Profit kategorilerinin gelire göre dağılımında maaliyetin dalgalandığını gözlemliyoruz, ortanca izine göre karın yüksek olduğunu söyleyebiliriz##
+
+
+##Konum-Varyans Cizimi##
+```{r}
+ggplot(a, aes(x=Median,y=DAG, color=Profit_kat, group=1))+
+  geom_point(size=10,alpha=0.6)+
+  geom_line(color="pink")
+```
+
+
+
+##ETKILESIM##
+
+```{r}
+
+#2 değişenin birlikte etkisi var mı yok mu bunu incelemek icin:
+etk_train<-train%>%
+  group_by(Cost,Profit_kat)%>% 
+  summarise(Median=median(Cost))
+etk_train
+
+ggplot(etk_train, aes(x = Profit_kat, y = Median,color=Cost,group=Cost)) +
+  geom_line() +
+  geom_point()
+
+```
+
+###Mosaic Plot##
+```{r}
+table3 <- xtabs(~Customer_Age+Profit_kat+Unit_Price, data=train)
+ftable(table3)
+```
+
+##Chernoff Faces##
+
+```{r}
+library(aplpack)
+
+library(dplyr)
+new_data<-train%>%
+  group_by(Profit_kat) %>%
+  dplyr::summarize(mean_Cost = mean(Cost),mean_Unit_Price = mean(Unit_Price),mean_Customer_Age = mean(Customer_Age))
+
+faces(new_data[,-1],  labels=as.character(new_data$Profit_kat))
+```
+
+
+##Star Plot##
+```{r}
+data_sorted <- train[order(-train$Cost),]
+```
+
+
+#Datayı dilimleme##
+```{r}
+library(ggplot2)
+data_sorted$group <- as.numeric(cut_number(as.numeric(rownames(data_sorted)), 10)) 
+
+library(dplyr)
+data_star<-data_sorted %>%
+  group_by(group) %>% 
+  dplyr::summarize(Cost= mean(Cost),Profit= mean(Profit),Unit_Cost= mean(Unit_Cost))
+
+stars(data_star[,-1], key.loc = c(15,1.25),main = "Starplot",label=row.names(data_star),cex=.7)
+```
+##Starplot grafiğimizden 5. ve 7. kümelerin birbirine yakın gözlemler içerdiğini görüyoruz##
+
+##Trellis plot##
+```{r}
+library(lattice)
+library(dplyr)
+tr_select<-filter(train,between('Customer_Age',7,12))
+xyplot(Cost ~ Profit | 'Customer_Age', data = tr_select)
+```
+
+##Uyum analizi- diff. data##
+```{r}
+library(factoextra)
+data(housetasks)
+dt <- as.table(as.matrix(housetasks))
+
+library(FactoMineR)
+res.ca <- CA(housetasks, graph = FALSE)
+fviz_ca_biplot(res.ca, repel = TRUE)
+```
+
+
+##Kumeleme##
+```{r}
+dist1<- dist(train, method = "euclidean") # uzaklik matrisi
+bikey <- hclust(dist1, method="ward.D") 
+plot(bikey) # Dendogram çizimi
+```
+
+##Kumeleme##
+
+```{r}
+dist1<- dist(train, method = "euclidean") # uzaklik matrisi
+bikey <- hclust(dist1, method="ward.D") 
+plot(bikey) # Dendogram çizimi
+```
+
+##Radar Grafik##
+```{r}
+#Ilk 6 gozlem icin cizim yapilirsa
+bike_sel<-train[1:6,]
+col_max <- apply(bike_sel, 2, max)
+col_min <- apply(bike_sel, 2, min)
+col_mean <- apply(bike_sel, 2, mean)
+col_summary <- t(data.frame(Max = col_max, Min = col_min, Average = col_mean))
+
+dfbike <- as.data.frame(rbind(col_summary, bike_sel))
+dfbike
+```
+
+# 7. ADIM #
+##train için##
+```{r}
+library(readxl)
+train <- read_excel("train.xlsx")
+train<-as.data.frame(train)
+train$Profit_kat[train$Profit >= -3 & train$Profit <=  1350]  <- "Az"
+train$Profit_kat[train$Profit >= 1351 & train$Profit <=  2690]  <- "Orta"
+train$Profit_kat[train$Profit >= 2691] <- "Cok"
+train$Age_Group<-ifelse(train$Age_Group>2.5,"Genç","GDegil")
+train$Customer_Age<-as.factor(train$Customer_Age)
+train$Customer_Gender<-as.factor(train$Customer_Gender)
+train$Profit_kat<-as.factor(train$Profit_kat)
+summary(train)
+```
+##test için##
+```{r}
+library(readxl)
+test <- read_excel("test.xlsx")
+test<-as.data.frame(test)
+test$Profit_kat[test$Profit >= -3 & test$Profit <=  1350]  <- "Az"
+test$Profit_kat[test$Profit >= 1351 & test$Profit <=  2690]  <- "Orta"
+test$Profit_kat[test$Profit >= 2691] <- "Cok"
+test$Age_Group<-ifelse(test$Age_Group>2.5,"Genç","GDegil")
+test$Customer_Age<-as.factor(test$Customer_Age)
+test$Customer_Gender<-as.factor(test$Customer_Gender)
+test$Profit_kat<-as.factor(test$Profit_kat)
+summary(test)
+```
+
+
+
+```{r}
+dt<-table(train$Customer_Gender,train$Customer_Age)
+prop.table(dt,2) # Column proportions
+round(100*prop.table(dt,2), 2) # Round column prop to 2 digits (percents)
+addmargins(round(prop.table(dt,2), 2),1)
+```
+
+
+```{r}
+library(DescTools)      
+Assocs(dt)[15:17,1] #phi and contingency coeff
+
+library("gplots")
+balloonplot(t(dt), main ="Cost ve Profit Kategorileri ", xlab ="", ylab="",
+            label = FALSE,show.margins = FALSE)
+        
+```
+
+
+##Chi-square##
+
+```{r}
+dt_c<-table(train$Cost,train$Profit_kat)
+dtc_exp <- chisq.test(dt_c)$expected
+rowcs <- function(i, obs, exp) {
+  sum(((obs[i,] - exp[i,])^2)/exp[i,])
+}
+
+chi_dtc<-as.matrix(lapply(seq_len(nrow(dt_c)), rowcs, obs = dt_c, exp = dtc_exp))
+rownames(chi_dtc)<-rownames(dt_c)
+chi_dtc
+```
+##Ki karelerini hesaplıyoruz##
+
+
+# 8. ADIM #
+
+##Cost-Unit_Cost##
+##train için##
+```{r}
+ggplot(train, aes(Cost,Unit_Cost))+
+  geom_point()+
+  geom_smooth(method = "loess", col="violet",se = FALSE)
+
+train$Unit_Cost_log<-log10(train$Unit_Cost) 
+```
+##maaliyetin artarak azaldığını söyleyebiliriz##
+##test için##
+```{r}
+ggplot(test, aes(Cost,Unit_Cost))+
+  geom_point()+
+  geom_smooth(method = "loess", col="violet",se = FALSE)
+
+test$Unit_Cost_log<-log10(test$Unit_Cost) 
+```
+##maaliyetin artarak azaldığını söyleyebiliriz##
+
+##Revenue-Unit_Cost##
+##train içn##
+```{r}
+hist(train$Revenue)
+train$Revenue_log<-log10(train$Revenue) 
+hist(train$Revenue_log)
+
+train$Revenue_kok<-sqrt(train$Revenue) 
+hist(train$Revenue_kok) 
+
+ggplot(train, aes(Revenue_kok,Unit_Cost_log))+
+  geom_point(size=1)+
+  geom_text(label=rownames(train),nudge_x=0.04,check_overlap=T,size=2.5)+
+  geom_smooth(method = "loess", col="pink",se = FALSE)
+```
+##logaritmik dönüşüm yaparak gelirin artarak azaldığını söyleyebiliriz##
+
+
+
+##test için##
+```{r}
+hist(test$Revenue)
+test$Revenue_log<-log10(test$Revenue) 
+hist(test$Revenue_log)
+
+test$Revenue_kok<-sqrt(test$Revenue) 
+hist(test$Revenue_kok) 
+
+```
+##test verisinde atadığımız revenue değişkenlerinin baktığımızda değerlerini gözlemliyoruz##
+
+
+
+##Profit kategorisi - Donusturulmus Profit kutu cizimi##
+```{r}
+is_outlier <- function(x) {
+  return(x < quantile(x, 0.25) - 1.5 * IQR(x) | x > quantile(x, 0.75) + 1.5 * IQR(x))
+}
+
+library(dplyr)
+dat <- train %>% tibble::rownames_to_column(var="outlier") %>% group_by(Profit_kat) %>% mutate(is_outlier=ifelse(is_outlier(Unit_Cost_log), Unit_Cost_log_log, as.numeric(NA)))
+dat$outlier[which(is.na(dat$is_outlier))] <- as.numeric(NA)
+
+ggplot(dat, aes(y=Unit_Cost_log, x=factor(Profit_kat),fill=Profit_kat))+
+  geom_boxplot() + 
+  geom_text(aes(label=outlier),na.rm=TRUE,nudge_x=0.15,size=3.5)+
+  labs(title="Kar kategorileri bazında log(maaliyet) Kutu Cizimi",x="kar Kategorileri", y = "log(maaliyet)")+
+  scale_fill_discrete(name = "Kar Kategorileri")
+```
+
+###polinomial 
+#merkezilestirme:##
+##train için##
+```{r}
+mean_revenue<-mean(train$Revenue)
+train$Revenue_merk<-(train$Revenue-mean_revenue)
+
+library(ggplot2)
+ggplot(train, aes(x = Revenue_merk, y =Unit_Cost_log )) +
+  stat_smooth(method = "lm", se = FALSE, color = "violet", formula = y ~ x) +
+  stat_smooth(method = "lm", se = FALSE, color = "lightblue", formula = y ~ x + I(x ^ 2)) +
+  stat_smooth(method = "lm", se = FALSE, color = "pink", formula = y ~ x + I(x ^ 2)+ I(x ^ 3)) +
+  geom_point(colour = "black", size = 1)
+```
+##Geliri merkezleştirip grafiği inceliyoruz##
+##Noktaları en iyi temsil eden çizgi pembe çizgidir. Bu da kübik dönüşüm gerektiğini gösterir##
+
+##test için##
+```{r}
+mean_revenue<-mean(test$Revenue)
+test$Revenue_merk<-(test$Revenue-mean_revenue)
+
+library(ggplot2)
+ggplot(test, aes(x = Revenue_merk, y =Unit_Cost_log )) +
+  stat_smooth(method = "lm", se = FALSE, color = "violet", formula = y ~ x) +
+  stat_smooth(method = "lm", se = FALSE, color = "lightblue", formula = y ~ x + I(x ^ 2)) +
+  stat_smooth(method = "lm", se = FALSE, color = "pink", formula = y ~ x + I(x ^ 2)+ I(x ^ 3)) +
+  geom_point(colour = "black", size = 1)
+```
+##Geliri merkezleştirip grafiği inceliyoruz##
+##Noktaları en iyi temsil eden çizgi pembe çizgidir. Bu da kübik dönüşüm gerektiğini gösterir##
+
+
+
+##köklü geliri merkezilestirip karesel terimlerine bakma:##
+##train için##
+```{r}
+mean_Revenuekok<-mean(train$Revenue_kok)
+train$Revenue_kok_merk<-(train$Revenue_kok-mean_Revenuekok)
+
+library(ggplot2)
+ggplot(train, aes(x = Revenue_kok_merk, y =Unit_Cost_log )) +
+  stat_smooth(method = "lm", se = FALSE, color = "violet", formula = y ~ x) +
+  stat_smooth(method = "lm", se = FALSE, color = "lightblue", formula = y ~ x + I(x ^ 2)) +
+  stat_smooth(method = "lm", se = FALSE, color = "pink", formula = y ~ x + I(x ^ 2)+ I(x ^ 3)) +
+  geom_point(colour = "black", size = 1)
+```
+##test için##
+```{r}
+mean_Revenuekok<-mean(test$Revenue_kok)
+test$Revenue_kok_merk<-(test$Revenue_kok-mean_Revenuekok)
+
+library(ggplot2)
+ggplot(test, aes(x = Revenue_kok_merk, y =Unit_Cost_log )) +
+  stat_smooth(method = "lm", se = FALSE, color = "violet", formula = y ~ x) +
+  stat_smooth(method = "lm", se = FALSE, color = "lightblue", formula = y ~ x + I(x ^ 2)) +
+  stat_smooth(method = "lm", se = FALSE, color = "pink", formula = y ~ x + I(x ^ 2)+ I(x ^ 3)) +
+  geom_point(colour = "black", size = 1)
+```
+
+
+##Tukey's Ladder ##
+##train için##
+```{r}
+library(rcompanion)
+Unit_Cost_tukey<-transformTukey(train$Unit_Cost,plotit=FALSE)
+
+Revenue_tukey<- transformTukey(train$Revenue, plotit=FALSE)
+```
+##test için##
+```{r}
+library(rcompanion)
+Unit_Cost_tukey<-transformTukey(test$Unit_Cost,plotit=FALSE)
+
+Revenue_tukey<- transformTukey(test$Revenue, plotit=FALSE)
+```
+
+
+##BOX-COX##
+```{r}
+library(MASS)
+#Unit_Cost icin
+Box_Unit_Cost<- boxcox(train$Unit_Cost ~ 1,            
+                lambda = seq(-6,6,0.1))      # Try values -6 to 6 by 0.1
+Cox_Unit_Cost<- data.frame(Box_Unit_Cost$x, Box_Unit_Cost$y) 
+Cox_Unit_Cost <- Cox_Unit_Cost[order(-Cox_Unit_Cost$Box_Unit_Cost.y),]  
+Cox_Unit_Cost[1,] 
+lambda <- Cox_Unit_Cost[1, "Box_Unit_Cost.x"]
+lambda
+```
+##çarpıklık gözlemlemiyoruz##
+
+
+##Revenue icin##
+```{r}
+Box_Revenue<- boxcox(train$Revenue ~ 1,            
+                lambda = seq(-6,6,0.1))      # Try values -6 to 6 by 0.1
+Cox_Revenue<- data.frame(Box_Revenue$x, Box_Revenue$y) 
+Cox_Revenue <- Cox_Revenue[order(-Cox_Revenue$Box_Revenue.y),] 
+Cox_Revenue[1,] 
+lambda_Revenue<- Cox_Revenue[1, "Box_Revenue.x"] 
+lambda_Revenue
+```
+##çarpıklık gözlemlemiyoruz##
+
+##ham hali uzerınden sacılım matrisi##
+```{r}
+orj<-train[,c(15,12,16)] # Bagımlı degisken sag alt koseye alındı
+library(PerformanceAnalytics)
+chart.Correlation(orj, histogram=TRUE, pch=19)
+
+plot(train$Cost,train$Unit_Cost) #kontrol
+plot(train$Revenue,train$Unit_Cost) #kontrol
+```
+##donusturulmus degiskenler uzerinden sacılım matrisi##
+```{r}
+transform_train<-train[,c(15,12,16)] 
+chart.Correlation(transform_train, histogram=TRUE, pch=19)
+```
+##Veriyi dönüştürdükten sonra saçılım matrisinde büyük bir değişme olmadığını gözlemliyoruz##
+
+
+
+# 9 - 10. BÖLÜM #
+
+
+##test kumesi##
+```{r}
+test$Customer_Gender<-as.factor(test$Customer_Gender)
+test$Customer_Gender<-as.factor(test$Customer_Gender)
+summary(test)
+```
+
+
+##Secenek modeller##
+##train için##
+```{r}
+fit1<-lm(Unit_Cost ~ Revenue+ Cost+Customer_Gender, data=train)
+summary(fit1)
+```
+##Revenue ve customer genderın anlamsız olduğu gözlemleniyor##
+
+
+
+
+
+##test için##
+```{r}
+fit1<-lm(Unit_Cost ~ Revenue+ Cost+Customer_Gender, data=test)
+summary(fit1)
+```
+##Customer genderın anlamsız olduğu gözlemleniyor##
+
+
+
+##Tahmin##
+```{r}
+predictions <- predict(fit1, test) #test uzerınden
+```
+
+##Model performans##
+```{r}
+#train:
+round(defaultSummary(data.frame(obs=train$Unit_Cost,pred=predict(fit1,train))),2)
+#test:
+round(defaultSummary(data.frame(obs=test$Unit_Cost,pred=predict(fit1,test))),2)
+
+library(ggfortify)
+autoplot(fit1)
+```
+
+
+
+
+#Modelleme- polinomial
+#merkezilestirilmis uzerinden##
+```{r}
+fit2<-lm(Unit_Cost_log ~ Revenue_kok_merk + I(Revenue_kok_merk^2)+I(Revenue_kok_merk^3)+Customer_Gender+Cost , data = train)
+summary(fit2)
+```
+##Customer genderın anlamsız olduğu gözlemleniyor##
+
+
+
+
+
+```{r}
+fit2<-lm(Unit_Cost_log ~ Revenue_kok +Cost+Customer_Gender, data = train)
+summary(fit2)
+```
+##Customer genderın anlamsız olduğu gözlemleniyor##
+
+```{r}
+fit2_res<-as.data.frame(t(defaultSummary(data.frame(obs=train$Unit_Cost_log,pred=predict(fit2,train)))))
+rownames(fit2_res)<-"fit2"
+```
+
+
+```{r}
+fit3<-lm(Unit_Cost_log ~ Revenue_kok_merk + I(Revenue_kok_merk^2)+I(Revenue_kok_merk^3)+Customer_Gender+Customer_Gender*Revenue_kok_merk , data = train)
+summary(fit3)
+```
+##Revenue_kok_merk^3ün ve Customer genderın anlamsız olduğu gözlemleniyor##
+
+```{r}
+fit3_res<-as.data.frame(t(defaultSummary(data.frame(obs=train$Unit_Cost_log,pred=predict(fit3,train)))))
+rownames(fit3_res)<-"fit3"
+```
+
+
+```{r}
+fit4<-lm(Unit_Cost_log ~ Cost+Customer_Gender, data = train)
+summary(fit4)
+```
+##Customer genderın anlamsız olduğu gözlemleniyor##
+
+```{r}
+fit4<-lm(Unit_Cost_log ~ Cost+Customer_Gender, data = train)
+summary(fit4)
+```
+##Customer genderın anlamsız olduğu gözlemleniyor##
+
+```{r}
+fit4_res<-as.data.frame(t(defaultSummary(data.frame(obs=train$Unit_Cost_log,pred=predict(fit4,train)))))
+rownames(fit4_res)<-"fit4"
+```
+
+
+```{r}
+fit5<-lm(Unit_Cost_log ~ Cost, data = train)
+summary(fit5)
+```
+
+
+```{r}
+fit5_res<-as.data.frame(t(defaultSummary(data.frame(obs=train$Unit_Cost_log,pred=predict(fit5,train)))))
+rownames(fit5_res)<-"fit5"
+```
+
+
+```{r}
+round(rbind(fit2_res,fit3_res,fit4_res,fit5_res),3)
+```
+
+##R-squared değerinde en büyük fit 2 modeli olduğu için fit 3ü seçiyoruz##
+
+
+```{r}
+na.omit(test)
+fit2_res_test<-as.data.frame(t(defaultSummary(data.frame(obs=test$Unit_Cost_log,pred=predict(fit2,test)))))
+rownames(fit2_res_test)<-"fit2"
+```
+
+
+```{r}
+fit3_res_test<-as.data.frame(t(defaultSummary(data.frame(obs=test$Unit_Cost_log,pred=predict(fit3,test)))))
+rownames(fit3_res_test)<-"fit3"
+```
+
+
+```{r}
+fit4_res_test<-as.data.frame(t(defaultSummary(data.frame(obs=test$Unit_Cost_log,pred=predict(fit4,test)))))
+rownames(fit4_res_test)<-"fit4"
+```
+
+
+```{r}
+fit5_res_test<-as.data.frame(t(defaultSummary(data.frame(obs=test$Unit_Cost_log,pred=predict(fit5,test)))))
+rownames(fit5_res_test)<-"fit5"
+```
+
+
+```{r}
+round(rbind(fit2_res_test,fit3_res_test,fit4_res_test,fit5_res_test),2)
+```
+##R-squared fit 3 değeri traindekine yakın olduğu için rahatlıkla bu modelde kalabiliyoruz##
+
+```{r}
+list2<-list(fit2,fit3,fit4,fit5)
+```
+
+
+```{r}
+PRESS <- function(linmodel) {   pr <- residuals(linmodel)/(1 - lm.influence(linmodel)$hat)
+sum(pr^2)
+}
+
+for (i in list2) {
+  print(paste("Press:",round(PRESS(i),3)))
+}
+
+library(ggfortify)
+autoplot(fit2)
+```
+##R consoleda gördüğümüz üzere de fit3 en küçük olduğu için en iyi model olduğunu doğruluyoruz##
+
+
+
+##CART - Regression##
+```{r}
+library(rpart)
+library(rpart.plot)
+
+cart<-rpart(Unit_Cost_log~Revenue_kok+Cost+Customer_Gender , data=train)
+cart$variable.importance
+
+rpart.plot(cart)
+```
+##Bu fonksiyona homo-hetero durumlarını inceleterek 5.adımda bulduğumuz gini ve entropi ile bağımlı değişkeni en iyi ifade eden değişkeni seçtirip bölümleme yaptırdık.
+##Bağımlı değişkenim unit_cost_log (total maaliyet) numeric olduğu için regresyon modellemesi yaptım. (kategorik olsaydı sınıflandırma yapardım)## 
+
+#train icin:
+```{r}
+defaultSummary(data.frame(obs=train$Unit_Cost_log,pred=predict(cart,train)))
+```
+
+#test icin:
+```{r}
+defaultSummary(data.frame(obs=test$Unit_Cost_log,pred=predict(cart,test)))
+```
+
+
+
+
+
+
+
+
